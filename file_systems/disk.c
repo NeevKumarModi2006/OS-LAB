@@ -154,7 +154,7 @@ void write_file(int inode_no , char* buffer){
          char buffer2[MAX_SIZE] ;
          memset(buffer2 , 0 , MAX_SIZE);
          int copy_size = (len - i * MAX_SIZE > MAX_SIZE) ? MAX_SIZE : (len - i * MAX_SIZE);
-         memcpy(buffer2 , buffer + i*MAX_SIZE , MAX_SIZE) ;
+         memcpy(buffer2 , buffer + i*MAX_SIZE , copy_size) ;
          write_block(block_no , buffer2) ;
     }
     write_inode(inode_no, &node);
