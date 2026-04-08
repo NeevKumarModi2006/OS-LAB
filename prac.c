@@ -9,58 +9,67 @@
 #define BIT_MAP_BLOCK 11
 #define MAX_BLOCK_PER_FILE 10
 
-char bitmap[MAX_SIZE];
 int disk_fd;
-
-struct superblock{
-    int total_block; 
-    int table_data;
-    int free_block;
-    int data_block;
-}
+char bitmap[MAX_SIZE];
 
 struct inode{
-    int used;
     int size;
+    int used;
     int blocks[MAX_BLOCK_PER_FILE];
 }
 
-#define INODE_PER_BLOCK (MAX_SIZE / sizeof(struct inode))
+#define INODE_PER_FILE (MAX_SIZE / sizeof(struct inode))
 
-
-void init_disk(){
-    disk_fd = open( "disk.img", O_CREAT | O_RDWR,0666);
-    if(disk_fd < 0){
-        perror("init disk failed.");
-        exit(1);
-    }
-    if(ftrucate(disk_fd, MAX_BLOCK*MAX_SIZE) != 0){
-        perror("init disk failed.");
-        exit(1);
-    }
-    printf("Disk Initialized successfully.\n");
-    close(disk_fd);
+struct superblock{
+    int total_block;
+    int inode_table;
+    int data_block;
+    int free_block;
 }
+
+void disk_init(){
+    disk_fd = open("disk.img", O_CREAT | O_RDWR, 0666);
+    if(disk_fd <0) exit(1);
+    if(ftruncate(disk_fd, MAX_BLOCK*MAX_SIZE) != 0) exit(1);
+
+}
+
+void read_block(int block_no , void * buffer){
+    off_t offset = block_no*MAX_SIZE;
+    lseek(disk_fd,offset,SEEK_SET);
+    read(disk_fd,buffer, MAX_SIZE );
+}
+void write_block(int block_no , void * buffer){
+        off_t offset = block_no*MAX_SIZE;
+    lseek(disk_fd,offset,SEEK_SET);
+    read(disk_fd,buffer, MAX_SIZE );
+}
+
 
 void set_block_used(int block_no){
-    bitmap[block_no/8] |= (1 << (block_no % 8));
-}
-void set_block_free(){
-    bitmap[block_no/8] &= ~(1 << (block_no % 8));
-}
-int check_block(int block_no){
-    return !( bitmap[block_no/8] &  (1 << (block_no % 8)) );
+     bitmap[block_no/8] |= (1 << (block_no%8)) ;
 }
 
-void read_block( int block_no, void* buffer){
-    off_t offset = block_no*MAX_SIZE;
-    lseek(disk_fd, offset, SEEK_SET);
-    read(disk_fd, buffer , MAX_SIZE );
+void set_block_free(int block_no){
+    bitmap[block_no/8] &= ~(1 << (block_no % 8));
 }
-void write_block(int block_no, void* buffer){
-    off_t offset = block_no* MAX_SIZE;
-    lseek(disk_fd, offset, SEEK_SET);
-    write(disk_fd, buffer, MAX_SIZE ) ;
+
+
+
+int check_block(int block_no){
+      return !(bitmap[block_no / 8] & (1 << (block_no % 8)));
+}
+
+void load_bitmap(){
+    read_block(11, &bitmap);
+}
+void save_bitmap(){
+    write_block(11, &bitmap);
+}
+
+void free_block(int block_no){
+    set_block_free(block_no);
+    save_bitmap();
 }
 void allocate_block(){
     for(int i=12; i<MAX_BLOCK; i++){
@@ -70,75 +79,104 @@ void allocate_block(){
             return i;
         }
     }
-}
-void free_block(int block_no){
-    set_block_free(block_no);
-    save_bitmap();
+    return -1;
 }
 
-void save_bitmap(){
-    write_block(11, &bitmap);
+void init_superblock(){
+    char buffer[MAX_SIZE];
+    memset(buffer, 0, MAX_SIZE);
+    struct superblock* sb = (struct superblock*)buffer;
+    sb->total_block = MAX_BLOCK ;
+    sb->inode_table = 1 ;
+    sb->data_block = 12 ;
+    sb->free_block = MAX_BLOCK - sb->data_block ;
+    write_block(0 , buffer); 
 }
-void load_bitmap(){
-    read_bitmap(11, &bitmap);
-}
 
-
-
-void init_superblock();
 struct superblock get_superblock(){
-    struct superblock sb ;
-    read_block(0 , &sb) ;
-    return sb ;
+    char buffer[MAX_SIZE];
+    read_block(0 , buffer) ;
+    struct superblock* sb = (struct superblock*)buffer;
+    return *sb ;
 };
 
 
-void read_inode( int inode_no, struct inode* node){
-    int block_no = inode_no/INODE_PER_BLOCK + 1;
-    int offset = inode_no % INODE_PER_BLOCK;
+
+
+
+void read_inode(int inode_no , struct inode* node){    // basically we have to put block's section data into this node
+    int block_no = inode_no/INODE_PER_BLOCK  + 1;
+    int offset = inode_no%INODE_PER_BLOCK ;
     char buffer[MAX_SIZE];
-    read_buffer(block_no, buffer);
-    struct inode* temp = (struct inode*) buffer;
-    *node = temp[offset];
+    read_block(block_no , buffer) ;
+    struct inode* temp = (struct inode*)buffer;
+    *node = temp[offset] ;
 }
-void write_inode(int inode_no, struct inode* node){
-    int block_no = inode_no/INODE_PER_BLOCK + 1;
-    int offset = inode_no % INODE_PER_BLOCK;
+void write_inode(int inode_no , struct inode* node){   // take data from node write block 
+    int block_no = inode_no/INODE_PER_BLOCK + 1 ;
+    int offset = inode_no%INODE_PER_BLOCK ;
     char buffer[MAX_SIZE];
-    read_block(block_no,buffer );
-    struct inode* temp = (struct inode*) buffer;
-    temp[offset] = *node ;  
-    write_block(block_no, buffer);  
+    read_block(block_no , buffer) ;
+    struct inode* temp = (struct inode*)buffer;
+    temp[offset] = *node ;
+    write_block(block_no , buffer) ;
 }
+
 int allocate_inode(){
-    for(int i=0; i<12; i++){
+    for(int i = 0 ; i < INODE_PER_BLOCK*10 ; i++){
         struct inode node;
-        read_inode(i, &node);
+
+        read_inode(i , &node) ;
         if(node.used == 0){
-            node.used = 1;
-            for(int i=0; i<MAX_BLOCKS_PER_FILE  ; i++){
-                    node.blocks[i]  = -1;
-            }
-            node.size = 0;
-            write_inode(i , &node);
-            return i;
+          node.used = 1 ;
+          for(int j = 0 ; j < MAX_BLOCK_PER_FILE ; j++){
+            node.blocks[j] = -1 ;
+          } 
+          node.size =  0 ;
+          write_inode(i , &node) ;
+          return  i ;
         }
     }
-    return -1;
+    return -1 ;
 }
-void free_inode(int i){
-    struct inode node;
-    read_inode(i, &node);
-    node.used = 0;
-    writr_inode(i, &node);
+void free_inode(int inode_no){
+    struct inode node ;
+    read_inode(inode_no , &node) ;
+    node.used = 0 ;
+    write_inode(inode_no , &node) ;
 }
 
-void read_file(){
 
+void write_file(int inode_no , char* buffer){
+       struct inode node ;
+       read_inode(inode_no , &node) ;
+       int len = strlen(buffer) ;
+       node.size = len ;
+       int blocks_needed = (len + MAX_SIZE- 1) / MAX_SIZE;
+       for(int i = 0 ; i < blocks_needed ; i++){
+         int block_no = allocate_block() ;
+         node.blocks[i] = block_no ;
+         char buffer2[MAX_SIZE] ;
+         memset(buffer2 , 0 , MAX_SIZE);
+         int copy_size = (len - i * MAX_SIZE > MAX_SIZE) ? MAX_SIZE : (len - i * MAX_SIZE);
+         memcpy(buffer2 , buffer + i*MAX_SIZE , copy_size) ;
+         write_block(block_no , buffer2) ;
+    }
+    write_inode(inode_no, &node);
 }
-void write_file(){
-    
+
+void read_file(int inode_no){
+    struct inode node ;
+    char buffer[MAX_SIZE] ;
+    read_inode(inode_no , &node) ;
+    for(int i = 0 ; i < MAX_BLOCK_PER_FILE ; i++){
+        if(node.blocks[i] == -1) return ;
+        read_block(node.blocks[i] , buffer) ;
+        printf("%s", buffer);
+    }
+    printf("\n") ;
 }
+
 
 int main(){
 

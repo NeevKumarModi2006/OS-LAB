@@ -283,7 +283,7 @@ int root_dir = init_root_directory(); // Create root
 // 2. Create a new file "hello.txt"
 int new_file_inode = allocate_inode();
 add_file_to_dir(root_dir, new_file_inode, "hello.txt");
-write_file(new_file_inode, "hello my name is shreyash sharma");
+write_file(new_file_inode, "hello my name is Neev Modi");
 
 // 3. To read it later, just search by name!
 int target_inode = find_file_inode(root_dir, "hello.txt");
@@ -303,7 +303,7 @@ if (target_inode != -1) {
     // init_superblock();
 
     // int inode_no = allocate_inode() ;
-    // char* data = "hello my name is shreyash sharma and i am studying in nitwarangal" ;
+    // char* data = "hello my name is Neev Modi and i am studying in NIT WARANGAL" ;
     // write_file(inode_no , data) ;
     // printf("Reading file:\n");
     // read_file(inode_no);
@@ -347,7 +347,7 @@ if (target_inode != -1) {
 //     //  char write_buff[MAX_SIZE] ;
 
 //     //  memset(read_buff , 0 , MAX_SIZE);
-//     //  strcpy(write_buff, "hello i am shreyash") ; 
+//     //  strcpy(write_buff, "hello i am Neev.") ; 
 //     //  write_block(5 , write_buff) ;
      
 //     //      // Read from block 5
