@@ -58,6 +58,11 @@ void* process_thread(void* arg) {
 
     if (isSafe()) {
         printf("  -> Request granted for Process %d (System is SAFE)\n", id);
+          for (int i = 0; i < R; i++) {
+            Available[i] += request[i];
+            Alloc[id][i] -= request[i];
+            Need[id][i] += request[i];
+        }
     } else {
         printf("  -> Request denied for Process %d (System would be UNSAFE). Reverting...\n", id);
         // Revert allocation
